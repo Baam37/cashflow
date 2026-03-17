@@ -2,22 +2,32 @@
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 
-const EINNAHMEN_KATEGORIEN = ["Freelance", "Gehalt", "Bonus", "Erstattung", "Sonstiges"];
-const AUSGABEN_KATEGORIEN = ["Lebensmittel", "Miete", "Transport", "Reise", "Abonnements", "Geschäft", "Gesundheit", "Einkaufen", "Sonstiges"];
-const MONATS_NAMEN = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+const EINNAHMEN_KATEGORIEN: string[] = ["Freelance", "Gehalt", "Bonus", "Erstattung", "Sonstiges"];
+const AUSGABEN_KATEGORIEN: string[] = ["Lebensmittel", "Miete", "Transport", "Reise", "Abonnements", "Geschäft", "Gesundheit", "Einkaufen", "Sonstiges"];
+const MONATS_NAMEN: string[] = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
 
-const KATEGORIE_ICONS = {
+const KATEGORIE_ICONS: Record<string, string> = {
   Freelance: "◈", Gehalt: "◎", Bonus: "◉", Erstattung: "↩", Sonstiges: "·",
   Lebensmittel: "⬡", Miete: "⬢", Transport: "⬣", Reise: "◇", Abonnements: "⊙",
   Geschäft: "◆", Gesundheit: "✦", Einkaufen: "◈",
 };
 
-const beispielDaten = () => {
+interface Transaction {
+  id: string;
+  type: string;
+  amount: number;
+  category: string;
+  date: string;
+  note: string;
+  createdAt: number;
+}
+
+const beispielDaten = (): Transaction[] => {
   const now = new Date();
   const y = now.getFullYear();
   const m = now.getMonth();
-  const data = [];
-  const push = (type, amount, category, daysAgo, note) => {
+  const data: Transaction[] = [];
+  const push = (type: string, amount: number, category: string, daysAgo: number, note: string) => {
     const d = new Date(y, m, now.getDate() - daysAgo);
     data.push({ id: crypto.randomUUID(), type, amount, category, date: d.toISOString().slice(0, 10), note, createdAt: d.getTime() });
   };
@@ -36,22 +46,22 @@ const beispielDaten = () => {
   return data;
 };
 
-const fmt = (n) => new Intl.NumberFormat("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+const fmt = (n: number): string => new Intl.NumberFormat("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 
 const useTransactions = () => {
-  const [txs, setTxs] = useState(() => {
+  const [txs, setTxs] = useState<Transaction[]>(() => {
     try {
       const stored = localStorage.getItem("cashflow_txs_de");
       return stored ? JSON.parse(stored) : beispielDaten();
     } catch { return beispielDaten(); }
   });
   useEffect(() => { localStorage.setItem("cashflow_txs_de", JSON.stringify(txs)); }, [txs]);
-  const add = (tx) => setTxs(prev => [{ ...tx, id: crypto.randomUUID(), createdAt: Date.now() }, ...prev]);
-  const remove = (id) => setTxs(prev => prev.filter(t => t.id !== id));
+  const add = (tx: Omit<Transaction, 'id' | 'createdAt'>) => setTxs(prev => [{ ...tx, id: crypto.randomUUID(), createdAt: Date.now() }, ...prev]);
+  const remove = (id: string) => setTxs(prev => prev.filter(t => t.id !== id));
   return { txs, add, remove };
 };
 
-const getStreak = (txs) => {
+const getStreak = (txs: Transaction[]): number => {
   const days = new Set(txs.map(t => t.date));
   let streak = 0;
   const d = new Date();
@@ -62,7 +72,7 @@ const getStreak = (txs) => {
   return streak;
 };
 
-const FloatingParticle = ({ type }) => {
+const FloatingParticle = ({ type }: { type: string }) => {
   const symbols = type === "einnahme" ? ["€", "+", "↑"] : ["€", "−", "↓"];
   return (
     <div className="particles-container">
@@ -76,8 +86,8 @@ const FloatingParticle = ({ type }) => {
   );
 };
 
-const GuthabenKarte = ({ einnahmen, ausgaben, guthaben }) => {
-  const [flash, setFlash] = useState(null);
+const GuthabenKarte = ({ einnahmen, ausgaben, guthaben }: { einnahmen: number; ausgaben: number; guthaben: number }) => {
+  const [flash, setFlash] = useState<string | null>(null);
   const prev = useRef(guthaben);
   useEffect(() => {
     if (prev.current !== guthaben) {
@@ -109,9 +119,9 @@ const GuthabenKarte = ({ einnahmen, ausgaben, guthaben }) => {
   );
 };
 
-const BalkenDiagramm = ({ txs }) => {
+const BalkenDiagramm = ({ txs }: { txs: Transaction[] }) => {
   const monate = useMemo(() => {
-    const map = {};
+    const map: Record<string, { einnahmen: number; ausgaben: number }> = {};
     txs.forEach(t => {
       const key = t.date.slice(0, 7);
       if (!map[key]) map[key] = { einnahmen: 0, ausgaben: 0 };
@@ -119,7 +129,9 @@ const BalkenDiagramm = ({ txs }) => {
       else map[key].ausgaben += t.amount;
     });
     return Object.entries(map).sort().slice(-6).map(([k, v]) => ({
-      label: MONATS_NAMEN[parseInt(k.slice(5, 7)) - 1], ...v
+      label: MONATS_NAMEN[parseInt(k.slice(5, 7)) - 1],
+      einnahmen: v.einnahmen,
+      ausgaben: v.ausgaben,
     }));
   }, [txs]);
   const max = Math.max(...monate.flatMap(m => [m.einnahmen, m.ausgaben]), 1);
@@ -145,19 +157,20 @@ const BalkenDiagramm = ({ txs }) => {
   );
 };
 
-const KreisDiagramm = ({ txs }) => {
+const KreisDiagramm = ({ txs }: { txs: Transaction[] }) => {
   const { map, total } = useMemo(() => {
     const now = new Date();
-    const map = {};
+    const m: Record<string, number> = {};
     txs.filter(t => {
       const d = new Date(t.date);
       return t.type === "ausgabe" && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-    }).forEach(t => { map[t.category] = (map[t.category] || 0) + t.amount; });
-    return { map, total: Object.values(map).reduce((a, b) => a + b, 0) };
+    }).forEach(t => { m[t.category] = (m[t.category] || 0) + t.amount; });
+    const total = Object.values(m).reduce((a: number, b: number) => a + b, 0);
+    return { map: m, total };
   }, [txs]);
 
   const colors = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#06b6d4", "#8b5cf6", "#ec4899", "#f43f5e", "#84cc16"];
-  const entries = Object.entries(map).sort((a, b) => b[1] - a[1]);
+  const entries: [string, number][] = Object.entries(map).sort((a, b) => b[1] - a[1]);
   let offset = 0;
   const segments = entries.map(([cat, val], i) => {
     const pct = total > 0 ? (val / total) * 100 : 0;
@@ -165,7 +178,7 @@ const KreisDiagramm = ({ txs }) => {
     offset += pct; return seg;
   });
   const r = 40, cx = 50, cy = 50;
-  const arc = (pct, off) => {
+  const arc = (pct: number, off: number): string => {
     if (pct >= 99.9) return `M ${cx} ${cy - r} A ${r} ${r} 0 1 1 ${cx - 0.01} ${cy - r} Z`;
     const a1 = (off / 100) * 2 * Math.PI - Math.PI / 2;
     const a2 = ((off + pct) / 100) * 2 * Math.PI - Math.PI / 2;
@@ -180,7 +193,7 @@ const KreisDiagramm = ({ txs }) => {
           <circle cx={cx} cy={cy} r={25} fill="#0f0f0f" />
           <text x={cx} y={cy - 3} textAnchor="middle" fill="#888" fontSize="5" fontFamily="monospace">GESAMT</text>
           <text x={cx} y={cy + 6} textAnchor="middle" fill="#fff" fontSize="7" fontFamily="monospace" fontWeight="bold">
-            €{total > 999 ? (total / 1000).toFixed(1) + "k" : fmt(total)}
+            {`€${total > 999 ? (total / 1000).toFixed(1) + "k" : fmt(total)}`}
           </text>
         </svg>
         <div className="donut-legend">
@@ -197,7 +210,7 @@ const KreisDiagramm = ({ txs }) => {
   );
 };
 
-const StreakBadge = ({ streak }) => (
+const StreakBadge = ({ streak }: { streak: number }) => (
   <div className="streak-badge">
     <span className="streak-fire">◉</span>
     <div>
@@ -207,10 +220,10 @@ const StreakBadge = ({ streak }) => (
   </div>
 );
 
-const TransaktionItem = ({ tx, onDelete, animate }) => {
+const TransaktionItem = ({ tx, onDelete }: { tx: Transaction; onDelete: (id: string) => void; animate: boolean }) => {
   const [visible, setVisible] = useState(false);
   const [leaving, setLeaving] = useState(false);
-  useEffect(() => { if (animate) requestAnimationFrame(() => setVisible(true)); else setVisible(true); }, [animate]);
+  useEffect(() => { requestAnimationFrame(() => setVisible(true)); }, []);
   const handleDelete = () => { setLeaving(true); setTimeout(() => onDelete(tx.id), 350); };
   return (
     <div className={`tx-item ${tx.type} ${visible ? "tx-visible" : "tx-hidden"} ${leaving ? "tx-leaving" : ""}`}>
@@ -228,7 +241,7 @@ const TransaktionItem = ({ tx, onDelete, animate }) => {
   );
 };
 
-const HinzufuegenPanel = ({ onAdd, onClose }) => {
+const HinzufuegenPanel = ({ onAdd, onClose }: { onAdd: (tx: Omit<Transaction, 'id' | 'createdAt'>) => void; onClose: () => void }) => {
   const [type, setType] = useState("ausgabe");
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState(AUSGABEN_KATEGORIEN[0]);
@@ -236,7 +249,7 @@ const HinzufuegenPanel = ({ onAdd, onClose }) => {
   const [note, setNote] = useState("");
   const [flash, setFlash] = useState(false);
   const [particles, setParticles] = useState(false);
-  const amountRef = useRef();
+  const amountRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setCategory(type === "einnahme" ? EINNAHMEN_KATEGORIEN[0] : AUSGABEN_KATEGORIEN[0]);
@@ -255,7 +268,7 @@ const HinzufuegenPanel = ({ onAdd, onClose }) => {
   const cats = type === "einnahme" ? EINNAHMEN_KATEGORIEN : AUSGABEN_KATEGORIEN;
 
   return (
-    <div className="panel-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="panel-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className={`add-panel ${flash ? "panel-flash" : ""}`}>
         {particles && <FloatingParticle type={type} />}
         <div className="panel-header">
