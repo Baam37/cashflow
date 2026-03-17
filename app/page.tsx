@@ -52,7 +52,7 @@ const useTransactions = () => {
   const [txs, setTxs] = useState<Transaction[]>(() => {
     try {
       const stored = localStorage.getItem("cashflow_txs_de");
-      return stored ? JSON.parse(stored) : beispielDaten();
+      return stored ? JSON.parse(stored) : [];
     } catch { return beispielDaten(); }
   });
   useEffect(() => { localStorage.setItem("cashflow_txs_de", JSON.stringify(txs)); }, [txs]);
