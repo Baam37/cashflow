@@ -24,9 +24,16 @@ interface Transaction {
 
 const fmt = (n: number): string => new Intl.NumberFormat("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 
+const APP_VERSION = "v2";
 const useTransactions = () => {
   const [txs, setTxs] = useState<Transaction[]>(() => {
     try {
+      const version = localStorage.getItem("cashflow_version");
+      if (version !== APP_VERSION) {
+        localStorage.removeItem("cashflow_txs_de");
+        localStorage.setItem("cashflow_version", APP_VERSION);
+        return [];
+      }
       const stored = localStorage.getItem("cashflow_txs_de");
       return stored ? JSON.parse(stored) : [];
     } catch { return []; }
