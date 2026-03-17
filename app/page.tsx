@@ -371,7 +371,7 @@ export default function App() {
             </div>
           )}
         </main>
-        <button className="fab" onClick={() => setShowAdd(true)}>＋</button>
+        <button onClick={()=>{localStorage.clear();window.location.reload()}} style={{position:"fixed",bottom:28,left:20,background:"#333",color:"#888",border:"1px solid #444",borderRadius:8,padding:"6px 12px",fontSize:11,cursor:"pointer",fontFamily:"monospace",zIndex:99}}>RESET</button><button className="fab" onClick={() => setShowAdd(true)}>＋</button>
         {showAdd && <HinzufuegenPanel onAdd={add} onClose={() => setShowAdd(false)} />}
       </div>
     </>
